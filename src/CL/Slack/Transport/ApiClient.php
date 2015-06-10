@@ -20,9 +20,6 @@ use CL\Slack\Transport\Events\ResponseEvent;
 use CL\Slack\Transport\Events\RequestEvent;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Message\RequestInterface;
-use GuzzleHttp\Message\ResponseInterface;
-use GuzzleHttp\Post\PostBody;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -148,16 +145,19 @@ class ApiClient implements ApiClientInterface
 
             $this->eventDispatcher->dispatch(self::EVENT_REQUEST, new RequestEvent($data));
 
-            $request = $this->createRequest($method, $data);
+            $options = [
+                'form_params' => $data,
+            ];
 
-            /** @var ResponseInterface $response */
-            $response = $this->client->send($request);
+            $response = $this->client->post(self::API_BASE_URL . $method, $options);
+
         } catch (\Exception $e) {
             throw new SlackException('Failed to send data to the Slack API', null, $e);
         }
 
         try {
-            $responseData = $response->json();
+            $responseData = (array) json_decode($response->getBody());
+
             if (!is_array($responseData)) {
                 throw new \Exception(sprintf(
                     'Expected JSON-decoded response data to be of type "array", got "%s"',
@@ -173,22 +173,4 @@ class ApiClient implements ApiClientInterface
         }
     }
 
-    /**
-     * @param string $method
-     * @param array  $payload
-     *
-     * @return RequestInterface
-     */
-    private function createRequest($method, array $payload)
-    {
-        $request = $this->client->createRequest('POST');
-        $request->setUrl(self::API_BASE_URL.$method);
-
-        $body = new PostBody();
-        $body->replaceFields($payload);
-
-        $request->setBody($body);
-
-        return $request;
-    }
 }
